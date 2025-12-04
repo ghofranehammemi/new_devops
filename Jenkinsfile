@@ -22,24 +22,31 @@ pipeline {
     }
 
     stages {
-        steps {
-                git branch: 'main', url: 'https://github.com/ghofranehammemi/Devops_repo.git'
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/ghofranehammemi/new_devops.git'
+
+                // Debug pour vérifier le contenu du repo
+                echo '=== Repository Root Contents ==='
+                sh 'ls -la'
             }
+        }
 
         stage('Compile') {
             steps {
-                script {
-                    // This will fail, but run checkout first to see the debug output
-                    echo 'Check the console output from Checkout stage to find pom.xml location'
-                    sh 'mvn clean compile'
+                dir('jenkins_repo-main') {
+                    sh './mvnw clean compile'
                 }
             }
         }
 
         stage('Test') {
-            sdir('jenkins_repo-main') {
-                         sh './mvnw clean compile'
-                     }
+            steps {
+                dir('jenkins_repo-main') {
+                    sh './mvnw test'
+                }
+            }
             post {
                 always {
                     junit '**/target/surefire-reports/*.xml'
@@ -50,13 +57,15 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 script {
-                    withSonarQubeEnv('SonarQube') {
-                        sh """
-                            mvn sonar:sonar \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.host.url=${SONAR_HOST_URL} \
-                                -Dsonar.login=${SONAR_TOKEN}
-                        """
+                    dir('jenkins_repo-main') {
+                        withSonarQubeEnv('SonarQube') {
+                            sh """
+                                ./mvnw sonar:sonar \
+                                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                    -Dsonar.host.url=${SONAR_HOST_URL} \
+                                    -Dsonar.login=${SONAR_TOKEN}
+                            """
+                        }
                     }
                 }
             }
@@ -64,7 +73,9 @@ pipeline {
 
         stage('Package') {
             steps {
-                sh 'mvn package -DskipTests'
+                dir('jenkins_repo-main') {
+                    sh './mvnw package -DskipTests'
+                }
             }
         }
 
@@ -73,7 +84,7 @@ pipeline {
                 script {
                     echo "Building Docker image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
                     sh """
-                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} jenkins_repo-main
                         docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
                     """
                 }
