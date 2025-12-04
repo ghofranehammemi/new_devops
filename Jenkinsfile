@@ -28,13 +28,13 @@ pipeline {
 
         stage('Compile') {
             steps {
-                sh 'mvnw clean compile'
+                sh 'mvn clean compile'
             }
         }
 
         stage('Test') {
             steps {
-                sh './mvnw test'
+                sh './mvn test'
             }
             post {
                 always {
@@ -47,7 +47,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh """
-                        ./mvnw sonar:sonar \
+                        ./mvn sonar:sonar \
                             -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                             -Dsonar.host.url=${SONAR_HOST_URL} \
                             -Dsonar.login=${SONAR_TOKEN}
@@ -58,7 +58,7 @@ pipeline {
 
         stage('Package') {
             steps {
-                sh './mvnw package -DskipTests'
+                sh './mvn package -DskipTests'
             }
         }
 
