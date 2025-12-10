@@ -49,17 +49,23 @@ pipeline {
         stage('Docker Build') {
             steps {
                 script {
+                    // Nettoyer les images existantes AVANT le build
+                    sh '''
+                        docker rmi ghofranehammemi/student-management:latest || true
+                        docker system prune -f
+                    '''
+                    
                     withCredentials([usernamePassword(
                         credentialsId: 'docker-hub-credentials',
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
                         sh '''
-                            # Login AVANT le build pour pouvoir pull les images de base
+                            # Login AVANT le build
                             echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
                             
-                            # Build avec Docker Hub authentifié
-                            docker build -t ghofranehammemi/student-management:${BUILD_NUMBER} .
+                            # Build SANS cache et avec pull des images de base
+                            docker build --no-cache --pull -t ghofranehammemi/student-management:${BUILD_NUMBER} .
                             docker tag ghofranehammemi/student-management:${BUILD_NUMBER} ghofranehammemi/student-management:latest
                         '''
                     }
