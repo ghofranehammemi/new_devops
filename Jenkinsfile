@@ -2,20 +2,14 @@ pipeline {
     agent any
     
     tools {
-         maven 'Maven'
-        jdk 'JDK-17'
-    }
-    
-    environment {
-        DOCKER_IMAGE = "ghofranehammemi/student-management"
-        DOCKER_TAG = "${env.BUILD_NUMBER}"
-        SONAR_HOST_URL = 'http://localhost:9000'
+        maven 'Maven'
+        jdk 'JDK'
     }
     
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main',
+                git branch: 'main', 
                     url: 'https://github.com/ghofranehammemi/new_devops.git'
             }
         }
@@ -37,13 +31,14 @@ pipeline {
             }
         }
         
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh 'mvn sonar:sonar'
-                }
-            }
-        }
+        // COMMENTÉ TEMPORAIREMENT - À configurer plus tard
+        // stage('SonarQube Analysis') {
+        //     steps {
+        //         withSonarQubeEnv('SonarQube') {
+        //             sh 'mvn sonar:sonar'
+        //         }
+        //     }
+        // }
         
         stage('Package') {
             steps {
@@ -55,8 +50,8 @@ pipeline {
             steps {
                 script {
                     sh """
-                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                        docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
+                        docker build -t ghofranehammemi/student-management:${BUILD_NUMBER} .
+                        docker tag ghofranehammemi/student-management:${BUILD_NUMBER} ghofranehammemi/student-management:latest
                     """
                 }
             }
@@ -70,11 +65,12 @@ pipeline {
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
-                        sh """
-                            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                            docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                            docker push ${DOCKER_IMAGE}:latest
-                        """
+                        sh '''
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                            docker push ghofranehammemi/student-management:${BUILD_NUMBER}
+                            docker push ghofranehammemi/student-management:latest
+                            docker logout
+                        '''
                     }
                 }
             }
@@ -84,16 +80,16 @@ pipeline {
     post {
         always {
             sh """
-                docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true
-                docker rmi ${DOCKER_IMAGE}:latest || true
+                docker rmi ghofranehammemi/student-management:${BUILD_NUMBER} || true
+                docker rmi ghofranehammemi/student-management:latest || true
             """
             cleanWs()
         }
         success {
-            echo 'Pipeline exécuté avec succès!'
+            echo '✅ Pipeline réussi!'
         }
         failure {
-            echo 'Pipeline a échoué!'
+            echo '❌ Pipeline a échoué!'
         }
     }
 }
