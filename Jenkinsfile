@@ -3,8 +3,7 @@ pipeline {
     
     tools {
         maven 'Maven'
-      jdk 'JDK-17'
-
+        jdk 'JDK-17'
     }
     
     stages {
@@ -50,10 +49,20 @@ pipeline {
         stage('Docker Build') {
             steps {
                 script {
-                    sh """
-                        docker build -t ghofranehammemi/student-management:${BUILD_NUMBER} .
-                        docker tag ghofranehammemi/student-management:${BUILD_NUMBER} ghofranehammemi/student-management:latest
-                    """
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            # Login AVANT le build pour pouvoir pull les images de base
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                            
+                            # Build avec Docker Hub authentifié
+                            docker build -t ghofranehammemi/student-management:${BUILD_NUMBER} .
+                            docker tag ghofranehammemi/student-management:${BUILD_NUMBER} ghofranehammemi/student-management:latest
+                        '''
+                    }
                 }
             }
         }
@@ -67,9 +76,14 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
                         sh '''
+                            # Login pour le push
                             echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                            
+                            # Push des images
                             docker push ghofranehammemi/student-management:${BUILD_NUMBER}
                             docker push ghofranehammemi/student-management:latest
+                            
+                            # Logout
                             docker logout
                         '''
                     }
