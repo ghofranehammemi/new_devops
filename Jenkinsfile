@@ -1,35 +1,36 @@
 pipeline {
     agent any
-    
+
     tools {
         maven 'Maven'
         jdk 'JDK-17'
     }
-    
+
     options {
         timeout(time: 60, unit: 'MINUTES')
         retry(2)
     }
-    
+
     environment {
         DOCKER_IMAGE = "ghofranehammemi/student-management"
         DOCKER_BUILDKIT = "1"
     }
-    
+
     stages {
+
         stage('Checkout') {
             steps {
-                git branch: 'main', 
+                git branch: 'main',
                     url: 'https://github.com/ghofranehammemi/new_devops.git'
             }
         }
-        
+
         stage('Build') {
             steps {
                 sh 'mvn clean compile -B'
             }
         }
-        
+
         stage('Test') {
             steps {
                 sh 'mvn test -B'
@@ -40,13 +41,29 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Package') {
             steps {
                 sh 'mvn package -DskipTests -B'
             }
         }
-        
+
+        /* 🚀 ANALYSE SONARQUBE */
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarServer') {
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_AUTH_TOKEN')]) {
+                        sh """
+                            mvn sonar:sonar \
+                            -Dsonar.projectKey=student-management \
+                            -Dsonar.host.url=http://localhost:9000 \
+                            -Dsonar.login=$SONAR_AUTH_TOKEN
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Docker Build') {
             steps {
                 script {
@@ -59,7 +76,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Docker Push') {
             steps {
                 script {
@@ -71,20 +88,19 @@ pipeline {
                         retry(3) {
                             sh '''
                                 echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                                
-                                # Push avec timeout et retry
+
                                 timeout 600 docker push ${DOCKER_IMAGE}:${BUILD_NUMBER} || {
                                     echo "Push failed, retrying..."
                                     sleep 10
                                     docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
                                 }
-                                
+
                                 timeout 600 docker push ${DOCKER_IMAGE}:latest || {
                                     echo "Push failed, retrying..."
                                     sleep 10
                                     docker push ${DOCKER_IMAGE}:latest
                                 }
-                                
+
                                 docker logout
                             '''
                         }
@@ -93,7 +109,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             sh """
@@ -106,7 +122,7 @@ pipeline {
             echo '✅ Pipeline réussi!'
         }
         failure {
-            echo '❌ Pipeline a échoué!'
+            echo '❌ Pipeline échoué!'
         }
     }
 }
