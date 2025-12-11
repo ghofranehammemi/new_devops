@@ -18,6 +18,7 @@ pipeline {
 
     stages {
 
+        /* --- CHECKOUT --- */
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -25,12 +26,14 @@ pipeline {
             }
         }
 
+        /* --- BUILD --- */
         stage('Build') {
             steps {
                 sh 'mvn clean compile -B'
             }
         }
 
+        /* --- TEST --- */
         stage('Test') {
             steps {
                 sh 'mvn test -B'
@@ -42,22 +45,21 @@ pipeline {
             }
         }
 
+        /* --- PACKAGE --- */
         stage('Package') {
             steps {
                 sh 'mvn package -DskipTests -B'
             }
         }
 
-        /* 🚀 ANALYSE SONARQUBE */
+        /* --- SONARQUBE ANALYSIS --- */
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarServer') {
-                   withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_AUTH_TOKEN')])
- {
-                        
+                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_AUTH_TOKEN')]) {
 
                         sh """
-                            mvn sonar:sonar \
+                            mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
                             -Dsonar.projectKey=student-management \
                             -Dsonar.host.url=http://localhost:9000 \
                             -Dsonar.login=$SONAR_AUTH_TOKEN
@@ -67,6 +69,7 @@ pipeline {
             }
         }
 
+        /* --- DOCKER BUILD --- */
         stage('Docker Build') {
             steps {
                 script {
@@ -80,14 +83,17 @@ pipeline {
             }
         }
 
+        /* --- DOCKER PUSH --- */
         stage('Docker Push') {
             steps {
                 script {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'docker-hub-credentials',
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        )
+                    ]) {
 
                         sh '''
                             echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
@@ -107,6 +113,7 @@ pipeline {
         }
     }
 
+    /* --- CLEANUP --- */
     post {
         always {
             sh """
