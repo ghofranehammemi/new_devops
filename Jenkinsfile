@@ -78,35 +78,31 @@ pipeline {
         }
 
         stage('Docker Push') {
-            steps {
-                script {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        retry(3) {
-                            sh '''
-                                echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+    steps {
+        script {
+            withCredentials([usernamePassword(
+                credentialsId: 'docker-hub-credentials',
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_PASS'
+            )]) {
 
-                                timeout 600 docker push ${DOCKER_IMAGE}:${BUILD_NUMBER} || {
-                                    echo "Push failed, retrying..."
-                                    sleep 10
-                                    docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                                }
+                sh '''
+                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                '''
 
-                                timeout 600 docker push ${DOCKER_IMAGE}:latest || {
-                                    echo "Push failed, retrying..."
-                                    sleep 10
-                                    docker push ${DOCKER_IMAGE}:latest
-                                }
-
-                                docker logout
-                            '''
-                        }
-                    }
+                timeout(time: 20, unit: 'MINUTES') {
+                    sh '''
+                        docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                        docker push ${DOCKER_IMAGE}:latest
+                    '''
                 }
+
+                sh 'docker logout'
             }
+        }
+    }
+}
+
         }
     }
 
