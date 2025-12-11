@@ -3,7 +3,17 @@ pipeline {
     
     tools {
         maven 'Maven'
-        jdk 'JDK-17'
+        jdk 'JDK'
+    }
+    
+    options {
+        timeout(time: 60, unit: 'MINUTES')
+        retry(2)
+    }
+    
+    environment {
+        DOCKER_IMAGE = "ghofranehammemi/student-management"
+        DOCKER_BUILDKIT = "1"
     }
     
     stages {
@@ -16,13 +26,13 @@ pipeline {
         
         stage('Build') {
             steps {
-                sh 'mvn clean compile'
+                sh 'mvn clean compile -B'
             }
         }
         
         stage('Test') {
             steps {
-                sh 'mvn test'
+                sh 'mvn test -B'
             }
             post {
                 always {
@@ -31,43 +41,20 @@ pipeline {
             }
         }
         
-        // COMMENTÉ TEMPORAIREMENT - À configurer plus tard
-        // stage('SonarQube Analysis') {
-        //     steps {
-        //         withSonarQubeEnv('SonarQube') {
-        //             sh 'mvn sonar:sonar'
-        //         }
-        //     }
-        // }
-        
         stage('Package') {
             steps {
-                sh 'mvn package -DskipTests'
+                sh 'mvn package -DskipTests -B'
             }
         }
         
         stage('Docker Build') {
             steps {
                 script {
-                    // Nettoyer les images existantes AVANT le build
-                    sh '''
-                        docker rmi ghofranehammemi/student-management:latest || true
-                        docker system prune -f
-                    '''
-                    
-                    withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        sh '''
-                            # Login AVANT le build
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                            
-                            # Build SANS cache et avec pull des images de base
-                            docker build --no-cache --pull -t ghofranehammemi/student-management:${BUILD_NUMBER} .
-                            docker tag ghofranehammemi/student-management:${BUILD_NUMBER} ghofranehammemi/student-management:latest
-                        '''
+                    retry(3) {
+                        sh """
+                            docker build --no-cache -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
+                            docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest
+                        """
                     }
                 }
             }
@@ -81,17 +68,26 @@ pipeline {
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
-                        sh '''
-                            # Login pour le push
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                            
-                            # Push des images
-                            docker push ghofranehammemi/student-management:${BUILD_NUMBER}
-                            docker push ghofranehammemi/student-management:latest
-                            
-                            # Logout
-                            docker logout
-                        '''
+                        retry(3) {
+                            sh '''
+                                echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                                
+                                # Push avec timeout et retry
+                                timeout 600 docker push ${DOCKER_IMAGE}:${BUILD_NUMBER} || {
+                                    echo "Push failed, retrying..."
+                                    sleep 10
+                                    docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                                }
+                                
+                                timeout 600 docker push ${DOCKER_IMAGE}:latest || {
+                                    echo "Push failed, retrying..."
+                                    sleep 10
+                                    docker push ${DOCKER_IMAGE}:latest
+                                }
+                                
+                                docker logout
+                            '''
+                        }
                     }
                 }
             }
@@ -101,8 +97,8 @@ pipeline {
     post {
         always {
             sh """
-                docker rmi ghofranehammemi/student-management:${BUILD_NUMBER} || true
-                docker rmi ghofranehammemi/student-management:latest || true
+                docker rmi ${DOCKER_IMAGE}:${BUILD_NUMBER} || true
+                docker rmi ${DOCKER_IMAGE}:latest || true
             """
             cleanWs()
         }
