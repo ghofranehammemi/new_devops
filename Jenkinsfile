@@ -52,7 +52,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarServer') {
-                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_AUTH_TOKEN')]) {
+                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_AUTH_TOKEN')]) {
                         sh """
                             mvn sonar:sonar \
                             -Dsonar.projectKey=student-management \
@@ -78,31 +78,29 @@ pipeline {
         }
 
         stage('Docker Push') {
-    steps {
-        script {
-            withCredentials([usernamePassword(
-                credentialsId: 'docker-hub-credentials',
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASS'
-            )]) {
+            steps {
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
 
-                sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                '''
+                        sh '''
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        '''
 
-                timeout(time: 20, unit: 'MINUTES') {
-                    sh '''
-                        docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                        docker push ${DOCKER_IMAGE}:latest
-                    '''
+                        timeout(time: 20, unit: 'MINUTES') {
+                            sh '''
+                                docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                                docker push ${DOCKER_IMAGE}:latest
+                            '''
+                        }
+
+                        sh 'docker logout'
+                    }
                 }
-
-                sh 'docker logout'
             }
-        }
-    }
-}
-
         }
     }
 
