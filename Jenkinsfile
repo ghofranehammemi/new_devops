@@ -6,63 +6,111 @@ pipeline {
         jdk 'JDK-17'
     }
     
+    options {
+        timeout(time: 60, unit: 'MINUTES')
+        retry(2)
+    }
+    
     environment {
-        SONAR_TOKEN = 'sqp_b765f177329e0e5f03e06ccbf925cf7907479886'
+        DOCKER_IMAGE = "ghofranehammemi/student-management"
+        DOCKER_BUILDKIT = "1"
     }
     
     stages {
         stage('Checkout') {
             steps {
-                echo '========================================='
-                echo 'Récupération du code'
-                echo '========================================='
                 git branch: 'main',
                     url: 'https://github.com/ghofranehammemi/new_devops.git'
             }
         }
         
-        stage('Build & Test') {
+        stage('Build') {
             steps {
-                echo '========================================='
-                echo 'Build et Tests'
-                echo '========================================='
-                sh 'mvn clean verify'
+                sh 'mvn clean compile -B'
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                sh 'mvn test -B'
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Package') {
+            steps {
+                sh 'mvn package -DskipTests -B'
             }
         }
         
         stage('SonarQube Analysis') {
-    steps {
-        script {
-            sh '''
-                mvn clean verify sonar:sonar \
-                -Dsonar.projectKey=student-management \
-                -Dsonar.host.url=http://localhost:9000 \
-                -Dsonar.login=sqa_cdb6c27c66aa39bad6a66777ded332c88764ff4b
-            '''
-        }
-    }
-}        
-        stage('Package') {
             steps {
-                echo '========================================='
-                echo 'Packaging'
-                echo '========================================='
-                sh 'mvn package -DskipTests'
+                script {
+                    sh '''
+                        mvn clean verify sonar:sonar \
+                        -Dsonar.projectKey=student-management \
+                        -Dsonar.host.url=http://localhost:9000 \
+                        -Dsonar.login=sqa_cdb6c27c66aa39bad6a66777ded332c88764ff4b
+                    '''
+                }
+            }
+        }
+        
+        stage('Docker Build') {
+            steps {
+                script {
+                    retry(3) {
+                        sh """
+                            docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
+                            docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Docker Push') {
+            when {
+                expression { currentBuild.currentResult == 'SUCCESS' }
+            }
+            steps {
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        '''
+                        sh """
+                            docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                            docker push ${DOCKER_IMAGE}:latest
+                        """
+                        sh 'docker logout'
+                    }
+                }
             }
         }
     }
     
     post {
+        always {
+            sh """
+                docker rmi ${DOCKER_IMAGE}:${BUILD_NUMBER} || true
+                docker rmi ${DOCKER_IMAGE}:latest || true
+            """
+            cleanWs()
+        }
         success {
-            echo '========================================='
-            echo '✅ BUILD SUCCESS !'
-            echo 'Voir SonarQube: http://localhost:9000'
-            echo '========================================='
+            echo '✅ Pipeline réussi!'
         }
         failure {
-            echo '========================================='
-            echo '❌ BUILD FAILED !'
-            echo '========================================='
+            echo '❌ Pipeline échoué!'
         }
     }
-}            
+}
