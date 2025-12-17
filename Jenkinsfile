@@ -65,7 +65,8 @@ pipeline {
                 script {
                     retry(3) {
                         sh """
-                            docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
+                            # Utiliser Dockerfile.fast pour être plus rapide
+                            docker build -f Dockerfile.fast -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
                             docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest
                         """
                     }
@@ -114,3 +115,4 @@ pipeline {
         }
     }
 }
+                  
