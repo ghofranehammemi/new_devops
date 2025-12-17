@@ -42,6 +42,18 @@ pipeline {
         }
     }
 }
+stage('Docker Build') {
+    steps {
+        script {
+            retry(3) {
+                sh """
+                    docker build -f Dockerfile.fast -t ghofranehammemi/student-management:${BUILD_NUMBER} .
+                    docker tag ghofranehammemi/student-management:${BUILD_NUMBER} ghofranehammemi/student-management:latest
+                """
+            }
+        }
+    }
+}
         
         stage('Package') {
             steps {
