@@ -31,19 +31,17 @@ pipeline {
         }
         
         stage('SonarQube Analysis') {
-            steps {
-                echo '========================================='
-                echo 'Analyse SonarQube'
-                echo '========================================='
-                sh """
-                    mvn sonar:sonar \
-                    -Dsonar.projectKey=student-management \
-                    -Dsonar.projectName=student-management \
-                    -Dsonar.host.url=http://localhost:9000 \
-                    -Dsonar.token=${SONAR_TOKEN}
-                """
-            }
+    steps {
+        script {
+            sh '''
+                mvn clean verify sonar:sonar \
+                -Dsonar.projectKey=student-management \
+                -Dsonar.host.url=http://localhost:9000 \
+                -Dsonar.login=sqa_cdb6c27c66aa39bad6a66777ded332c88764ff4b
+            '''
         }
+    }
+}
         
         stage('Package') {
             steps {
