@@ -1,127 +1,71 @@
 pipeline {
     agent any
-
+    
     tools {
-        maven 'Maven'
+        maven 'Maven-3'
         jdk 'JDK-17'
     }
-
-    options {
-        timeout(time: 60, unit: 'MINUTES')
-        retry(2)
-    }
-
+    
     environment {
-        DOCKER_IMAGE = "ghofranehammemi/student-management"
-        DOCKER_BUILDKIT = "1"
+        SONAR_TOKEN = 'sqp_b765f177329e0e5f03e06ccbf925cf7907479886'
     }
-
+    
     stages {
-
         stage('Checkout') {
             steps {
+                echo '========================================='
+                echo 'Récupération du code'
+                echo '========================================='
                 git branch: 'main',
                     url: 'https://github.com/ghofranehammemi/new_devops.git'
             }
         }
-
-        stage('Build') {
+        
+        stage('Build & Test') {
             steps {
-                sh 'mvn clean compile -B'
+                echo '========================================='
+                echo 'Build et Tests'
+                echo '========================================='
+                sh 'mvn clean verify'
             }
         }
-
-        stage('Test') {
-            steps {
-                sh 'mvn test -B'
-            }
-            post {
-                always {
-                    junit '**/target/surefire-reports/*.xml'
-                }
-            }
-        }
-
-        stage('Package') {
-            steps {
-                sh 'mvn package -DskipTests -B'
-            }
-        }
-
-        /* 🚀 ANALYSE SONARQUBE */
+        
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonarqube') {
-                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_AUTH_TOKEN')]) {
-                        sh """
-                            mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
-                            -Dsonar.projectKey=student-management \
-                            -Dsonar.host.url=http://localhost:9000 \
-                            -Dsonar.login=$SONAR_AUTH_TOKEN
-                        """
-                    }
-                }
+                echo '========================================='
+                echo 'Analyse SonarQube'
+                echo '========================================='
+                sh """
+                    mvn sonar:sonar \
+                    -Dsonar.projectKey=student-management \
+                    -Dsonar.projectName=student-management \
+                    -Dsonar.host.url=http://localhost:9000 \
+                    -Dsonar.token=${SONAR_TOKEN}
+                """
             }
         }
-
-        stage('Docker Build') {
-            when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
-            }
+        
+        stage('Package') {
             steps {
-                script {
-                    retry(3) {
-                        sh """
-                            docker build --no-cache -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
-                            docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest
-                        """
-                    }
-                }
+                echo '========================================='
+                echo 'Packaging'
+                echo '========================================='
+                sh 'mvn package -DskipTests'
             }
         }
-
-        stage('Docker Push') {
-            when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
-            }
-            steps {
-                script {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-
-                        sh '''
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        '''
-
-                        sh '''
-                            docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                            docker push ${DOCKER_IMAGE}:latest
-                        '''
-
-                        sh 'docker logout'
-                    }
-                }
-            }
-        }
-
     }
-
+    
     post {
-        always {
-            sh """
-                docker rmi ${DOCKER_IMAGE}:${BUILD_NUMBER} || true
-                docker rmi ${DOCKER_IMAGE}:latest || true
-            """
-            cleanWs()
-        }
         success {
-            echo '✅ Pipeline réussi!'
+            echo '========================================='
+            echo '✅ BUILD SUCCESS !'
+            echo 'Voir SonarQube: http://localhost:9000'
+            echo '========================================='
         }
         failure {
-            echo '❌ Pipeline échoué!'
+            echo '========================================='
+            echo '❌ BUILD FAILED !'
+            echo '========================================='
         }
     }
-}
+}            
