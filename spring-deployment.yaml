@@ -22,7 +22,7 @@ metadata:
   name: spring-app
   namespace: devops
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: spring-app

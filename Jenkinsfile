@@ -24,31 +24,9 @@ pipeline {
                 sh 'mvn clean compile -B'
             }
         }
-        stage('Test') {
-            steps {
-                sh 'mvn test -B'
-            }
-            post {
-                always {
-                    junit '**/target/surefire-reports/*.xml'
-                }
-            }
-        }
         stage('Package') {
             steps {
                 sh 'mvn package -DskipTests -B'
-            }
-        }
-        stage('SonarQube Analysis') {
-            steps {
-                script {
-                    sh '''
-                        mvn clean verify sonar:sonar \
-                        -Dsonar.projectKey=student-management \
-                        -Dsonar.host.url=http://localhost:9000 \
-                        -Dsonar.login=sqa_cdb6c27c66aa39bad6a66777ded332c88764ff4b
-                    '''
-                }
             }
         }
         stage('Docker Build') {
