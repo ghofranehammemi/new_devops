@@ -98,11 +98,29 @@ pipeline {
             }
         }
     }
-    
+    stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    sh '''
+                        echo "Deploying to Kubernetes..."
+                        kubectl apply -f mysql-deployment.yaml -n devops
+                        kubectl apply -f spring-deployment.yaml -n devops
+                        
+                        echo "Waiting for deployment to be ready..."
+                        kubectl rollout status deployment/mysql -n devops --timeout=300s
+                        kubectl rollout status deployment/spring-app -n devops --timeout=300s
+                        
+                        echo "Deployment successful!"
+                        kubectl get pods -n devops
+                        kubectl get svc -n devops
+                    '''
+                }
+            }
+        }
     post {
         always {
             sh """
-                docker rmi ${DOCKER_IMAGE}:${BUILD_NUMBER} || true
+nano Jenkinsfile                docker rmi ${DOCKER_IMAGE}:${BUILD_NUMBER} || true
                 docker rmi ${DOCKER_IMAGE}:latest || true
             """
             cleanWs()
