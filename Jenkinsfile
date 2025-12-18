@@ -1,21 +1,17 @@
 pipeline {
     agent any
-    
     tools {
         maven 'Maven-3'
         jdk 'JDK-17'
     }
-    
     options {
         timeout(time: 60, unit: 'MINUTES')
         retry(2)
     }
-    
     environment {
         DOCKER_IMAGE = "ghofranehammemi/student-management"
         DOCKER_BUILDKIT = "1"
     }
-    
     stages {
         stage('Checkout') {
             steps {
@@ -23,13 +19,11 @@ pipeline {
                     url: 'https://github.com/ghofranehammemi/new_devops.git'
             }
         }
-        
         stage('Build') {
             steps {
                 sh 'mvn clean compile -B'
             }
         }
-        
         stage('Test') {
             steps {
                 sh 'mvn test -B'
@@ -40,13 +34,11 @@ pipeline {
                 }
             }
         }
-        
         stage('Package') {
             steps {
                 sh 'mvn package -DskipTests -B'
             }
         }
-        
         stage('SonarQube Analysis') {
             steps {
                 script {
@@ -59,13 +51,11 @@ pipeline {
                 }
             }
         }
-        
         stage('Docker Build') {
             steps {
                 script {
                     retry(3) {
                         sh """
-                            # Utiliser Dockerfile.fast pour être plus rapide
                             docker build -f Dockerfile.fast -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
                             docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest
                         """
@@ -73,7 +63,6 @@ pipeline {
                 }
             }
         }
-        
         stage('Docker Push') {
             when {
                 expression { currentBuild.currentResult == 'SUCCESS' }
@@ -97,8 +86,7 @@ pipeline {
                 }
             }
         }
-    }
-    stage('Deploy to Kubernetes') {
+        stage('Deploy to Kubernetes') {
             steps {
                 script {
                     sh '''
@@ -117,10 +105,11 @@ pipeline {
                 }
             }
         }
+    }
     post {
         always {
             sh """
-nano Jenkinsfile                docker rmi ${DOCKER_IMAGE}:${BUILD_NUMBER} || true
+                docker rmi ${DOCKER_IMAGE}:${BUILD_NUMBER} || true
                 docker rmi ${DOCKER_IMAGE}:latest || true
             """
             cleanWs()
@@ -133,4 +122,3 @@ nano Jenkinsfile                docker rmi ${DOCKER_IMAGE}:${BUILD_NUMBER} || tr
         }
     }
 }
-                  
