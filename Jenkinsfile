@@ -29,6 +29,19 @@ pipeline {
                 sh 'mvn package -DskipTests -B'
             }
         }
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    sh '''
+                        mvn clean verify sonar:sonar \
+                        -Dsonar.projectKey=student-management \
+                        -Dsonar.host.url=http://192.168.49.2:30900 \
+                        -Dsonar.login=admin \
+                        -Dsonar.password=admin
+                    '''
+                }
+            }
+        }
         stage('Docker Build') {
             steps {
                 script {
